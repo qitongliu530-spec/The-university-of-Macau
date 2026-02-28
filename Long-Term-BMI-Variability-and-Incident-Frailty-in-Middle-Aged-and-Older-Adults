@@ -1,0 +1,124 @@
+data_SHARE <- readRDS(file = "C:\\Users\\liuqi\\Desktop\\Original Data\\SHARE\\GH_SHARE_g_rel9-0-0_ALL_datasets_stata\\GH_SHARE_g.rds")
+
+#选取SHARE变量
+data_SHARE <- subset(data_SHARE, select = c(mergeid,
+                                              #参与调查
+                                              inw4, inw5, inw6, inw7, inw8, inw9,     #inw8: =1 if respondent w8
+                                              r4iwstat, r5iwstat, r6iwstat, r7iwstat, r8iwstat, r9iwstat,     #wx r interview status
+                                              #调查时间
+                                              r4iwy, r5iwy, r6iwy, r7iwy, r8iwy, r9iwy,     #r4iwy:w4 r interview year
+                                              r4iwm, r5iwm, r6iwm, r7iwm, r8iwm, r9iwm,     #r4iwm:w4 r interview month
+                                              #年龄
+                                              r4agey, r5agey, r6agey, r7agey, r8agey, r9agey,    #r8agey_m:w8 r age (years) at ivw midmon
+                                              #BMI 变异+累积
+                                              r4bmi, r5bmi, r6bmi,
+                                              #Frailty相关变量
+                                              # 一、日常活动能力相关变量
+                                              r4dressa, r5dressa, r6dressa, r7dressa, r8dressa, r9dressa,                # 1. 穿衣（Dressing）
+                                              r4walkra, r5walkra, r6walkra, r7walkra, r8walkra, r9walkra,                # 2. 室内行走（Walking in house）
+                                              r4batha, r5batha, r6batha, r7batha, r8batha, r9batha,                      # 3. 洗澡（Bathing/showering）
+                                              r4eata, r5eata, r6eata, r7eata, r8eata, r9eata,                            # 4. 进食（Eating）
+                                              r4beda, r5beda, r6beda, r7beda, r8beda, r9beda,                            # 5. 上下床（Getting in and out of bed）
+                                              r4toilta, r5toilta, r6toilta, r7toilta, r8toilta, r9toilta,                # 6. 使用厕所（Use toilet）
+                                              r4mealsa, r5mealsa, r6mealsa, r7mealsa, r8mealsa, r9mealsa,                # 7. 准备热餐（Cook/prepare warm meal）
+                                              r4shopa, r5shopa, r6shopa, r7shopa, r8shopa, r9shopa,                      # 8. 购买杂货（Shop groceries）
+                                              r4phonea, r5phonea, r6phonea, r7phonea, r8phonea, r9phonea,                # 9. 使用电话（Use telephone）
+                                              r4mapa, r5mapa, r6mapa, r7mapa, r8mapa, r9mapa,                            # 10. 使用地图（Use map）
+                                              r4medsa, r5medsa, r6medsa, r7medsa, r8medsa, r9medsa,                      # 11. 服药（Take medication）
+                                              r4housewka, r5housewka, r6housewka, r7housewka, r8housewka, r9housewka,    # 12. 做家务（Do housework）
+                                              r4moneya, r5moneya, r6moneya, r7moneya, r8moneya, r9moneya,                # 13. 管理财务（Manage money）
+                                              r4walk100a, r5walk100a, r6walk100a, r7walk100a, r8walk100a, r9walk100a,    # 14. 步行 100 米（Walking 100 meters/1 block）
+                                              r4sita, r5sita, r6sita, r7sita, r8sita, r9sita,                            # 15. 久坐 2 小时（Sitting for two hours）
+                                              r4chaira, r5chaira, r6chaira, r7chaira, r8chaira, r9chaira,                # 16. 从椅子站起（Getting up from chair）
+                                              r4clim1a, r5clim1a, r6clim1a, r7clim1a, r8clim1a, r9clim1a,                # 17. 爬一层楼梯（Climb one flight of stairs）
+                                              r4climsa, r5climsa, r6climsa, r7climsa, r8climsa, r9climsa,                # 18. 爬多层楼梯（Climb several flights of stairs）
+                                              r4stoopa, r5stoopa, r6stoopa, r7stoopa, r8stoopa, r9stoopa,                # 19. 弯腰 / 屈膝（Stooping）
+                                              r4armsa, r5armsa, r6armsa, r7armsa, r8armsa, r9armsa,                      # 20. 伸展手臂（Reaching）
+                                              r4pusha, r5pusha, r6pusha, r7pusha, r8pusha, r9pusha,                      # 21. 推拉重物（Pulling/pushing）
+                                              r4lifta, r5lifta, r6lifta, r7lifta, r8lifta, r9lifta,                      # 22. 提举重物（Lifting）
+                                              r4dimea, r5dimea, r6dimea, r7dimea, r8dimea, r9dimea,                      # 23. 捡拾物品（Picking）
+                                              # 二、健康状况相关变量
+                                              r4hearte, r5hearte, r6hearte, r7hearte, r8hearte, r9hearte,                # 24. 心脏病（Heart attack）
+                                              r4hibpe, r5hibpe, r6hibpe, r7hibpe, r8hibpe, r9hibpe,                      # 25. 高血压（High blood pressure）
+                                              r4stroke, r5stroke, r6stroke, r7stroke, r8stroke, r9stroke,                # 26. 中风（Stroke）
+                                              r4diabe, r5diabe, r6diabe, r7diabe, r8diabe, r9diabe,                      # 27. 糖尿病（Diabetes）
+                                              r4lunge, r5lunge, r6lunge, r7lunge, r8lunge, r9lunge,                      # 28. 慢性肺病（Chronic lung disease）
+                                              r4arthre, r5arthre, r6arthre, r7arthre, r8arthre, r9arthre,                # 29. 关节炎（Arthritis）
+                                              r4cancre, r5cancre, r6cancre, r7cancre, r8cancre, r9cancre,                # 30. 癌症（Cancer）
+                                              r4parkine, r5parkine, r6parkine, r7parkine, r8parkine, r9parkine,          # 31. 帕金森病（Parkinson’s disease）
+                                              r4hipe, r5hipe, r6hipe, r7hipe, r8hipe, r9hipe,                            # 32. 髋部骨折（Hip fracture）
+                                              r4fall_s, r5fall_s, r6fall_s, r7fall_s, r8fall_s, r9fall_s,                # 33. 跌倒（Falls）
+                                              r4fatig, r5fatig, r6fatig, r7fatig, r8fatig, r9fatig,                      # 34. 疲劳（Fatigue）
+                                              r4sleep, r5sleep, r6sleep, r7sleep, r8sleep, r9sleep,                      # 35. 睡眠问题（Sleep problems）
+                                              r4depress, r5depress, r6depress, r7depress, r8depress, r9depress,          # 36. 抑郁（Depressed）
+                                              r4pessim, r5pessim, r6pessim, r7pessim, r8pessim, r9pessim,                # 37. 绝望感（Hopelessness）
+                                              r4appett, r5appett, r6appett, r7appett, r8appett, r9appett,                # 38. 食欲减退（Diminished appetite）
+                                              # 三、健康评估相关变量（原始 + 新生成）
+                                              r4shlt, r5shlt, r6shlt, r7shlt, r8shlt, r9shlt,                            # 39. 自评健康（Self-rated health）
+                                              #r4bmicat, r5bmicat, r6bmicat, r7bmicat, r8bmicat, r9bmicat,               #     BMI 异常（BMI deficit）
+                                              r4hearing, r5hearing, r6hearing, r7hearing, r8hearing, r9hearing,          # 40. 听力障碍（Hearing impairment）
+                                              r4nsight, r5nsight, r6nsight, r7nsight, r8nsight, r9nsight,                # 41. 近视力障碍（Visual impairment - close）
+                                              r4dsight, r5dsight, r6dsight, r7dsight, r8dsight, r9dsight,                # 42. 远视力障碍（Visual impairment - distant）
+                                              # 四、体力活动相关变量
+                                              r4vgactx, r5vgactx, r6vgactx, r7vgactx, r8vgactx, r9vgactx,                # 43. 体力活动（Physical activity）
+                                              r4mdactx, r5mdactx, r6mdactx, r7mdactx, r8mdactx, r9mdactx,
+                                              # 五、认知功能相关变量
+                                              r4imrc, r5imrc, r6imrc, r7imrc, r8imrc, r9imrc,                            # 44. 即时词语回忆（Immediate word recall）
+                                              r4dlrc, r5dlrc, r6dlrc, r7dlrc, r8dlrc, r9dlrc,                            # 45. 延迟词语回忆（Delayed word recall）
+                                              r4verbf, r5verbf, r6verbf, r7verbf, r8verbf, r9verbf,                      # 46. 语言流畅性（Verbal fluency）
+                                              #All-cause Mortality
+                                              radyear,      #radyear: r death year
+                                              radmonth,     #radmonth: r death month
+                                              #协变量
+                                              country,
+                                              ragender,     #ragender: r gender
+                                              h4rural,     #h4rural:w8 lives in rural or urban
+                                              r4mstath,     #r4mstath:w8 r marstat-w/o part,filled
+                                              raeducl,     #raeducl: r harmonized education level
+                                              r4lbrf_s,     #r4lbrf_s:w8 R labor force status
+                                              #r4vgactx,     #r4vgactx:w8 r freq vigorous phys activ {finer scale}
+                                              #r4mdactx,     #r4mdactx:w9 r freq moderate phys activ {finer scale}
+                                              r4smokev,     #r4smokev:w9 r smoke ever
+                                              r4smoken,     #r4smoken:w9 r smokes now
+                                              r4drinkev,     #r4drinkev:w4 R ever drank alcohol
+                                              r4drink3m,     #r4drink3m:w4 R drinks any alcohol last 3 months
+                                              r4drinkx,     #r4drinkx:w4 R Frequency of drinking
+                                              r4drinkxw,     #r4drinkxw:w4 R drinks alcohol weekly
+                                              h4atotb,     #h4atotb:w9 total of all assets--cross-wave
+                                              hh4hhresp,     #hh8hhresp:w8 # core respondents in hh
+                                              #r4arthre, #w8 R ever had arthritis
+                                              #r4cancre, #w8 R ever had cancer
+                                              #r4hibpe, #w8 R ever had high blood pressure
+                                              #r4diabe, #w8 R ever had diabetes
+                                              #r4lunge, #w8 R ever had lung disease
+                                              #r4hearte, #w8 R ever had heart problems
+                                              #r4stroke, #w8 R ever had stroke
+                                              r4psyche, #w8 R ever had psych disorder
+                                              r4wtresp          #r4wtresp:w1 R person-level cross-sectional weight
+))
+
+# ============================================================================================================================================================
+# (一) 纳入排除
+# ============================================================================================================================================================
+#1.inw4参与者
+table(data_SHARE$inw4, useNA = "always")
+data_SHARE1 <- data_SHARE[data_SHARE$inw4 == 1 & !is.na(data_SHARE$inw4), ]
+
+#2.年龄≥50
+sum(is.na(data_SHARE1$r4agey))
+data_SHARE2 <- data_SHARE1[data_SHARE1$r4agey >= 50 & !(is.na(data_SHARE1$r4agey)), ]
+
+#3.来自欧洲
+table(data_SHARE2$country, useNA = "always")
+data_SHARE3 <- data_SHARE2[data_SHARE2$country != 25, ]     #N = 56600
+
+#4.没有Wave 4 5 6 的BMI测量值
+summary(data_SHARE3$r4bmi, useNA = "always")
+summary(data_SHARE3$r5bmi, useNA = "always")
+summary(data_SHARE3$r6bmi, useNA = "always")
+data_SHARE4 <- data_SHARE3 %>% filter(!is.na(r4bmi) & !is.na(r5bmi) & !is.na(r6bmi))     #N = 26814
+
+#5. 排除未参加随访者 Wave 7 8 9
+data_SHARE5 <- data_SHARE4 %>% filter(r7iwstat == 1 | r8iwstat == 1 | r9iwstat == 1)     #N = 23311
+
+#6. 构建Frailty 并 排除基线FI≥0.25 的参与者 重头戏来咯！
