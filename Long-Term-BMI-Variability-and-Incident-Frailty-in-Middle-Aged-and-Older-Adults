@@ -1,5 +1,43 @@
-data_SHARE <- readRDS(file = "C:\\Users\\liuqi\\Desktop\\Original Data\\SHARE\\GH_SHARE_g_rel9-0-0_ALL_datasets_stata\\GH_SHARE_g.rds")
+#所需包&数据
+library(haven)
+library(dplyr)
+library(tidyverse)
+library(purrr)
+library(summarytools)
+library(foreign)   #用于导出SAS XPT格式
+library(writexl)
+library(gee)
+library(geepack)
+library(tidyr)
+library(tibble)
+library(ggplot2)
+library(gridExtra)
+library(corrplot)
+library(corrr)
+library(openxlsx)
+library(janitor)
+library(scales)     #小数点
+library(zoo)
+library(rstatix)
+library(tableone)
+library(mice)
+library(stringr)
+library(psych)
+library(viridis)   
+library(ggtext)    
+library(scales) 
+library(knitr)
+library(kableExtra)
+library(survival)
+library(survminer)
+library(survey)
+library(minpack.lm, lib.loc = "D:/MyRPackages")
 
+#rm(list = ls())
+#data_SHARE <- read_dta ("C:\\Users\\liuqi\\Desktop\\Original Data\\SHARE\\GH_SHARE_g_rel9-0-0_ALL_datasets_stata\\GH_SHARE_g.dta")
+#saveRDS(data_SHARE, file = "C:\\Users\\liuqi\\Desktop\\Original Data\\SHARE\\GH_SHARE_g_rel9-0-0_ALL_datasets_stata\\GH_SHARE_g.rds")
+data_SHARE <- readRDS(file = "C:\\Users\\liuqi\\Desktop\\Original Data\\SHARE\\GH_SHARE_g_rel9-0-0_ALL_datasets_stata\\GH_SHARE_g.rds")
+table(data_SHARE$country)
 #选取SHARE变量
 data_SHARE <- subset(data_SHARE, select = c(mergeid,
                                               #参与调查
@@ -60,8 +98,8 @@ data_SHARE <- subset(data_SHARE, select = c(mergeid,
                                               r4nsight, r5nsight, r6nsight, r7nsight, r8nsight, r9nsight,                # 41. 近视力障碍（Visual impairment - close）
                                               r4dsight, r5dsight, r6dsight, r7dsight, r8dsight, r9dsight,                # 42. 远视力障碍（Visual impairment - distant）
                                               # 四、体力活动相关变量
-                                              r4vgactx, r5vgactx, r6vgactx, r7vgactx, r8vgactx, r9vgactx,                # 43. 体力活动（Physical activity）
-                                              r4mdactx, r5mdactx, r6mdactx, r7mdactx, r8mdactx, r9mdactx,
+                                              #r4vgactx, r5vgactx, r6vgactx, r7vgactx, r8vgactx, r9vgactx,                # 43. 体力活动（Physical activity）
+                                              #r4mdactx, r5mdactx, r6mdactx, r7mdactx, r8mdactx, r9mdactx,
                                               # 五、认知功能相关变量
                                               r4imrc, r5imrc, r6imrc, r7imrc, r8imrc, r9imrc,                            # 44. 即时词语回忆（Immediate word recall）
                                               r4dlrc, r5dlrc, r6dlrc, r7dlrc, r8dlrc, r9dlrc,                            # 45. 延迟词语回忆（Delayed word recall）
@@ -94,6 +132,15 @@ data_SHARE <- subset(data_SHARE, select = c(mergeid,
                                               #r4hearte, #w8 R ever had heart problems
                                               #r4stroke, #w8 R ever had stroke
                                               r4psyche, #w8 R ever had psych disorder
+                                              
+                                              # Medication ---------------------
+                                              r4rxhibp,
+                                              r4rxdiab,
+                                              r4rxlung,
+                                              r4rxheart,
+                                              r4rxpsych,
+                                              r5rxinflm,
+
                                               r4wtresp          #r4wtresp:w1 R person-level cross-sectional weight
 ))
 
@@ -121,4 +168,872 @@ data_SHARE4 <- data_SHARE3 %>% filter(!is.na(r4bmi) & !is.na(r5bmi) & !is.na(r6b
 #5. 排除未参加随访者 Wave 7 8 9
 data_SHARE5 <- data_SHARE4 %>% filter(r7iwstat == 1 | r8iwstat == 1 | r9iwstat == 1)     #N = 23311
 
+#先备份
+saveRDS(data_SHARE5, file = "D:\\0. 科研文件\\2. Obesity trajectories and frailty_Zhiyue&Simu&Qitong\\1. SHARE\\2. Backups of study participants\\SHARE_Variability + Cumulative_20260601.rds")
+
 #6. 构建Frailty 并 排除基线FI≥0.25 的参与者 重头戏来咯！
+##### (1) Select health-related variables 已筛选 [略]===========================
+##### (2) Remove variables with >10% missing at baseline========================
+all_vars <- c("mergeid",
+              # ADLs/IADLs 1-13
+              "r4dressa", "r5dressa", "r6dressa", "r7dressa", "r8dressa", "r9dressa",
+              "r4walkra", "r5walkra", "r6walkra", "r7walkra", "r8walkra", "r9walkra",
+              "r4batha", "r5batha", "r6batha", "r7batha", "r8batha", "r9batha",
+              "r4eata", "r5eata", "r6eata", "r7eata", "r8eata", "r9eata",
+              "r4beda", "r5beda", "r6beda", "r7beda", "r8beda", "r9beda",
+              "r4toilta", "r5toilta", "r6toilta", "r7toilta", "r8toilta", "r9toilta",
+              "r4mealsa", "r5mealsa", "r6mealsa", "r7mealsa", "r8mealsa", "r9mealsa",
+              "r4shopa", "r5shopa", "r6shopa", "r7shopa", "r8shopa", "r9shopa",
+              "r4phonea", "r5phonea", "r6phonea", "r7phonea", "r8phonea", "r9phonea",
+              "r4mapa", "r5mapa", "r6mapa", "r7mapa", "r8mapa", "r9mapa",
+              "r4medsa", "r5medsa", "r6medsa", "r7medsa", "r8medsa", "r9medsa",
+              "r4housewka", "r5housewka", "r6housewka", "r7housewka", "r8housewka", "r9housewka",
+              "r4moneya", "r5moneya", "r6moneya", "r7moneya", "r8moneya", "r9moneya",
+              # MOBILITY LIMITATIONS 14-23
+              "r4walk100a", "r5walk100a", "r6walk100a", "r7walk100a", "r8walk100a", "r9walk100a",
+              "r4sita", "r5sita", "r6sita", "r7sita", "r8sita", "r9sita",
+              "r4chaira", "r5chaira", "r6chaira", "r7chaira", "r8chaira", "r9chaira",
+              "r4clim1a", "r5clim1a", "r6clim1a", "r7clim1a", "r8clim1a", "r9clim1a",
+              "r4climsa", "r5climsa", "r6climsa", "r7climsa", "r8climsa", "r9climsa",
+              "r4stoopa", "r5stoopa", "r6stoopa", "r7stoopa", "r8stoopa", "r9stoopa",
+              "r4armsa", "r5armsa", "r6armsa", "r7armsa", "r8armsa", "r9armsa",
+              "r4pusha", "r5pusha", "r6pusha", "r7pusha", "r8pusha", "r9pusha",
+              "r4lifta", "r5lifta", "r6lifta", "r7lifta", "r8lifta", "r9lifta",
+              "r4dimea", "r5dimea", "r6dimea", "r7dimea", "r8dimea", "r9dimea",
+              # CHRONIC DISEASES 24-32
+              "r4hearte", "r5hearte", "r6hearte", "r7hearte", "r8hearte", "r9hearte",
+              "r4hibpe", "r5hibpe", "r6hibpe", "r7hibpe", "r8hibpe", "r9hibpe",
+              "r4stroke", "r5stroke", "r6stroke", "r7stroke", "r8stroke", "r9stroke",
+              "r4diabe", "r5diabe", "r6diabe", "r7diabe", "r8diabe", "r9diabe",
+              "r4lunge", "r5lunge", "r6lunge", "r7lunge", "r8lunge", "r9lunge",
+              "r4arthre", "r5arthre", "r6arthre", "r7arthre", "r8arthre", "r9arthre",
+              "r4cancre", "r5cancre", "r6cancre", "r7cancre", "r8cancre", "r9cancre",
+              "r4parkine", "r5parkine", "r6parkine", "r7parkine", "r8parkine", "r9parkine",
+              "r4hipe", "r5hipe", "r6hipe", "r7hipe", "r8hipe", "r9hipe",
+              # SELF-RATED HEALTH & SYMPTOMS 33-41
+              "r4shlt", "r5shlt", "r6shlt", "r7shlt", "r8shlt", "r9shlt",
+              #"r4vgactx", "r5vgactx", "r6vgactx", "r7vgactx", "r8vgactx", "r9vgactx",
+              #"r4mdactx", "r5mdactx", "r6mdactx", "r7mdactx", "r8mdactx", "r9mdactx",
+              "r4fall_s", "r5fall_s", "r6fall_s", "r7fall_s", "r8fall_s", "r9fall_s",
+              "r4hearing", "r5hearing", "r6hearing", "r7hearing", "r8hearing", "r9hearing",
+              "r4nsight", "r5nsight", "r6nsight", "r7nsight", "r8nsight", "r9nsight",
+              "r4dsight", "r5dsight", "r6dsight", "r7dsight", "r8dsight", "r9dsight",
+              "r4fatig", "r5fatig", "r6fatig", "r7fatig", "r8fatig", "r9fatig",
+              "r4sleep", "r5sleep", "r6sleep", "r7sleep", "r8sleep", "r9sleep",
+              # PSYCHOLOGICAL SYMPTOMS 42-44
+              "r4depress", "r5depress", "r6depress", "r7depress", "r8depress", "r9depress",
+              "r4pessim", "r5pessim", "r6pessim", "r7pessim", "r8pessim", "r9pessim",
+              "r4appett", "r5appett", "r6appett", "r7appett", "r8appett", "r9appett",
+              # COGNITIVE FUNCTIONING 45-46
+              "r4imrc", "r5imrc", "r6imrc", "r7imrc", "r8imrc", "r9imrc",
+              "r4dlrc", "r5dlrc", "r6dlrc", "r7dlrc", "r8dlrc", "r9dlrc",
+              "r4verbf", "r5verbf", "r6verbf", "r7verbf", "r8verbf", "r9verbf")
+
+vars_r4 <- all_vars[grepl("^r4", all_vars)]     #只看基线
+data_missing_baseline <- data_SHARE5[, vars_r4, drop = FALSE]
+
+total_sample <- nrow(data_missing_baseline)
+missing_count <- colSums(is.na(data_missing_baseline))  
+missing_pct <- round((missing_count / total_sample) * 100, 2)  # 缺失值比例
+
+missing_result <- data.frame(变量名 = names(missing_count),
+                             总样本量 = total_sample,
+                             缺失值数量 = missing_count,
+                             缺失值百分比 = missing_pct)
+
+missing_result <- missing_result[order(-missing_result$缺失值百分比), ]
+print(missing_result)
+
+##### (3) Recode all variables to a 0–1 scale===================================
+# 1. Self-rated health (1-5 → 0-1)
+table(data_SHARE5$r4shlt)
+vars_health <- paste0("r", 4:9, "shlt")
+vars_health <- vars_health[vars_health %in% colnames(data_SHARE5)]
+new_vars_health <- paste0("w", sub("r(\\d+)shlt", "\\1", vars_health), "shlt")
+data_SHARE5 <- data_SHARE5 %>% 
+  mutate(across(
+    .cols = all_of(vars_health),
+    .fns = ~ ifelse(between(., 1, 5), (.-1)/4, NA_real_) # 1-5分制转0-1，异常值设为NA
+  ))
+
+# 2. Immediate word recall (0-10 → 1-0)
+table(data_SHARE5$r4imrc)
+vars_wordrecord <- paste0("r", 4:9, "imrc")
+vars_wordrecord <- vars_wordrecord[vars_wordrecord %in% colnames(data_SHARE5)]
+new_vars_wordrecord <- paste0("w", sub("r(\\d+)imrc", "\\1", vars_wordrecord), "imrc")
+data_SHARE5 <- data_SHARE5 %>% 
+  mutate(across(
+    .cols = all_of(vars_wordrecord),
+    .fns = ~ ifelse(between(., 0, 10), . / 10, NA_real_) # 0-10分制转1-0，异常值设为NA
+  ))
+
+# 3. Delayed word recall（r4dlrc-r9dlrc → r4Delayedword-r9Delayedword）
+table(data_SHARE5$r4dlrc)
+vars_dlrc <- paste0("r", 4:9, "dlrc")
+vars_dlrc <- vars_dlrc[vars_dlrc %in% colnames(data_SHARE5)]
+new_vars_hearing <- paste0("w", sub("r(\\d+)dlrc", "\\1", vars_dlrc), "dlrc")
+data_SHARE5 <- data_SHARE5 %>% 
+  mutate(across(
+    .cols = all_of(vars_dlrc),
+    .fns = ~ ifelse(between(., 0, 10), . / 10, NA_real_) # 0-10分制转1-0，异常值设为NA
+  ))
+
+# 4. r4verbf:w4 r verbal fluency score (0-100 → 1-0)
+table(data_SHARE5$r4verbf)
+vars_verf <- paste0("r", 4:9, "verbf")
+vars_verf <- vars_verf[vars_verf %in% colnames(data_SHARE5)]
+new_vars_hearing <- paste0("w", sub("r(\\d+)verbf", "\\1", vars_verf), "verbf")
+data_SHARE5 <- data_SHARE5 %>% 
+  mutate(across(
+    .cols = all_of(vars_verf),
+    .fns = ~ ifelse(between(., 0, 100), (100 - .) / 100, NA_real_) # 0-100分制转1-0，异常值设为NA
+  ))
+
+# 5. r4hearing:w4 R self-rated hearing (1-5 -> 0, 0.25, 0.5, 0.75, 1)
+table(data_SHARE5$r4hearing)
+vars_verf <- paste0("r", 4:9, "hearing")
+vars_verf <- vars_verf[vars_verf %in% colnames(data_SHARE5)]
+new_vars_hearing <- paste0("w", sub("r(\\d+)hearing", "\\1", vars_verf), "hearing")
+data_SHARE5 <- data_SHARE5 %>% 
+  mutate(across(
+    .cols = all_of(vars_verf),
+    .fns = ~ ifelse(between(., 1, 5), (.-1)/4, NA_real_) # 0-100分制转1-0，异常值设为NA
+  ))
+
+# 6. r4nsight-r9nsight (1-5 -> 0, 0.25, 0.5, 0.75, 1)
+table(data_SHARE5$r4nsight)
+vars_nearsight <- paste0("r", 4:9, "nsight")
+vars_nearsight <- vars_nearsight[vars_nearsight %in% colnames(data_SHARE5)]
+new_vars_hearing <- paste0("w", sub("r(\\d+)nsight", "\\1", vars_nearsight), "nsight")
+data_SHARE5 <- data_SHARE5 %>% 
+  mutate(across(
+    .cols = all_of(vars_nearsight),
+    .fns = ~ ifelse(between(., 1, 5), (.-1)/4, NA_real_) # 1-5分制转0-1，异常值设为NA
+  ))
+
+# 7. r4dsight-r9dsight (1-5 -> 0, 0.25, 0.5, 0.75, 1)
+table(data_SHARE5$r4dsight)
+vars_distantsight <- paste0("r", 4:9, "dsight")
+vars_distantsight <- vars_distantsight[vars_distantsight %in% colnames(data_SHARE5)]
+new_vars_hearing <- paste0("w", sub("r(\\d+)dsight", "\\1", vars_distantsight), "dsight")
+data_SHARE5 <- data_SHARE5 %>% 
+  mutate(across(
+    .cols = all_of(vars_distantsight),
+    .fns = ~ ifelse(between(., 1, 5), (.-1)/4, NA_real_) # 1-5分制转0-1，异常值设为NA
+  ))
+
+# 8. r4vgactx-r9vgactx r4mdactx-r9mdactx
+# 2.> 1 per week     3.1 per week     4.1-3 per mon(0.25-0.75 per week)     5.hardly ever or never
+waves <- 4:9
+for (w in waves) {
+  data_SHARE5[[paste0("r", w, "phyact")]] <- ifelse(
+    data_SHARE5[[paste0("r", w, "vgactx")]] + data_SHARE5[[paste0("r", w, "mdactx")]] <= 5,
+    1, 0)}
+for (w in waves) {
+  var <- paste0("r", w, "phyact")
+  cat("=== 变量", var, "的频数表 ===\n")
+  print(table(data_SHARE5[[var]], useNA = "ifany"))
+  cat("\n")
+}
+
+##### (4) Exclude rare (<1%) or saturated (>80%) deficits=======================
+target_vars <- c(
+  # ADLs/IADLs 1-13
+  "r4dressa", "r5dressa", "r6dressa", "r7dressa", "r8dressa", "r9dressa",
+  "r4walkra", "r5walkra", "r6walkra", "r7walkra", "r8walkra", "r9walkra",
+  "r4batha", "r5batha", "r6batha", "r7batha", "r8batha", "r9batha",
+  "r4eata", "r5eata", "r6eata", "r7eata", "r8eata", "r9eata",
+  "r4beda", "r5beda", "r6beda", "r7beda", "r8beda", "r9beda",
+  "r4toilta", "r5toilta", "r6toilta", "r7toilta", "r8toilta", "r9toilta",
+  "r4mealsa", "r5mealsa", "r6mealsa", "r7mealsa", "r8mealsa", "r9mealsa",
+  "r4shopa", "r5shopa", "r6shopa", "r7shopa", "r8shopa", "r9shopa",
+  "r4phonea", "r5phonea", "r6phonea", "r7phonea", "r8phonea", "r9phonea",
+  "r4mapa", "r5mapa", "r6mapa", "r7mapa", "r8mapa", "r9mapa",
+  "r4medsa", "r5medsa", "r6medsa", "r7medsa", "r8medsa", "r9medsa",
+  "r4housewka", "r5housewka", "r6housewka", "r7housewka", "r8housewka", "r9housewka",
+  "r4moneya", "r5moneya", "r6moneya", "r7moneya", "r8moneya", "r9moneya",
+  # MOBILITY LIMITATIONS 14-23
+  "r4walk100a", "r5walk100a", "r6walk100a", "r7walk100a", "r8walk100a", "r9walk100a",
+  "r4sita", "r5sita", "r6sita", "r7sita", "r8sita", "r9sita",
+  "r4chaira", "r5chaira", "r6chaira", "r7chaira", "r8chaira", "r9chaira",
+  "r4clim1a", "r5clim1a", "r6clim1a", "r7clim1a", "r8clim1a", "r9clim1a",
+  "r4climsa", "r5climsa", "r6climsa", "r7climsa", "r8climsa", "r9climsa",
+  "r4stoopa", "r5stoopa", "r6stoopa", "r7stoopa", "r8stoopa", "r9stoopa",
+  "r4armsa", "r5armsa", "r6armsa", "r7armsa", "r8armsa", "r9armsa",
+  "r4pusha", "r5pusha", "r6pusha", "r7pusha", "r8pusha", "r9pusha",
+  "r4lifta", "r5lifta", "r6lifta", "r7lifta", "r8lifta", "r9lifta",
+  "r4dimea", "r5dimea", "r6dimea", "r7dimea", "r8dimea", "r9dimea",
+  # CHRONIC DISEASES 24-32
+  "r4hearte", "r5hearte", "r6hearte", "r7hearte", "r8hearte", "r9hearte",
+  "r4hibpe", "r5hibpe", "r6hibpe", "r7hibpe", "r8hibpe", "r9hibpe",
+  "r4stroke", "r5stroke", "r6stroke", "r7stroke", "r8stroke", "r9stroke",
+  "r4diabe", "r5diabe", "r6diabe", "r7diabe", "r8diabe", "r9diabe",
+  "r4lunge", "r5lunge", "r6lunge", "r7lunge", "r8lunge", "r9lunge",
+  "r4arthre", "r5arthre", "r6arthre", "r7arthre", "r8arthre", "r9arthre",
+  "r4cancre", "r5cancre", "r6cancre", "r7cancre", "r8cancre", "r9cancre",
+  "r4parkine", "r5parkine", "r6parkine", "r7parkine", "r8parkine", "r9parkine",
+  "r4hipe", "r5hipe", "r6hipe", "r7hipe", "r8hipe", "r9hipe",
+  # SELF-RATED HEALTH & SYMPTOMS 33-41
+  "r4shlt", "r5shlt", "r6shlt", "r7shlt", "r8shlt", "r9shlt",
+  #"r4phyact", "r5phyact", "r6phyact", "r7phyact", "r8phyact", "r9phyact",
+  #"r4vgactx", "r5vgactx", "r6vgactx", "r7vgactx", "r8vgactx", "r9vgactx",       
+  #"r4mdactx", "r5mdactx", "r6mdactx", "r7mdactx", "r8mdactx", "r9mdactx",
+  "r4fall_s", "r5fall_s", "r6fall_s", "r7fall_s", "r8fall_s", "r9fall_s",
+  "r4hearing", "r5hearing", "r6hearing", "r7hearing", "r8hearing", "r9hearing",
+  "r4nsight", "r5nsight", "r6nsight", "r7nsight", "r8nsight", "r9nsight",
+  "r4dsight", "r5dsight", "r6dsight", "r7dsight", "r8dsight", "r9dsight",
+  "r4fatig", "r5fatig", "r6fatig", "r7fatig", "r8fatig", "r9fatig",
+  "r4sleep", "r5sleep", "r6sleep", "r7sleep", "r8sleep", "r9sleep",
+  # PSYCHOLOGICAL SYMPTOMS 42-44
+  "r4depress", "r5depress", "r6depress", "r7depress", "r8depress", "r9depress",
+  "r4pessim", "r5pessim", "r6pessim", "r7pessim", "r8pessim", "r9pessim",
+  "r4appett", "r5appett", "r6appett", "r7appett", "r8appett", "r9appett",
+  # COGNITIVE FUNCTIONING 45-46
+  "r4imrc", "r5imrc", "r6imrc", "r7imrc", "r8imrc", "r9imrc",
+  "r4dlrc", "r5dlrc", "r6dlrc", "r7dlrc", "r8dlrc", "r9dlrc",
+  "r4verbf", "r5verbf", "r6verbf", "r7verbf", "r8verbf", "r9verbf")
+
+vars_r4_1_80 <- target_vars[grepl("^r4", target_vars)]
+existing_targets <- intersect(vars_r4_1_80, names(data_SHARE5))
+
+means <- round(colMeans(data_SHARE5[, existing_targets, drop = FALSE], na.rm = TRUE), 4) 
+
+invalid_vars_r4 <- names(means)[means <= 0.01 | means >= 0.80]
+
+## 筛选条件：均值≤0.01 或 ≥0.80 的变量为待删除变量
+rare_saturated_vars <- unlist(lapply(invalid_vars_r4, function(var) {     ## 匹配所有轮次的对应变量（如r4walkra → r5walkra/r6walkra...）
+  suffix <- sub("^r4", "", var)     # 提取变量名中除r4外的后缀（如walkra、eata）
+  paste0("r", 4:9, suffix)     # 生成所有轮次的变量名（r4-r9 + 后缀）
+}))
+
+result_df <- data.frame(
+  变量名 = names(means),
+  均值 = means,
+  是否符合条件 = ifelse(means > 0.01 & means < 0.80, "是", "否"),
+  筛选条件 = "0.01 < 均值 < 0.80",
+  row.names = NULL,
+  stringsAsFactors = FALSE
+) %>% arrange(desc(是否符合条件)) # 按是否符合条件降序排序
+
+cat("===== data_SHARE5 中目标变量的均值及筛选结果 =====\n")
+print(result_df, row.names = FALSE)
+#不满足条件的变量如下
+#r4walkra 0.0096           否 0.01 < 均值 < 0.80
+#r4eata 0.0097           否 0.01 < 均值 < 0.80
+#r4phonea 0.0086           否 0.01 < 均值 < 0.80
+#r4medsa 0.0072           否 0.01 < 均值 < 0.80
+#r4parkine 0.0055           否 0.01 < 均值 < 0.80
+
+existing_rare_vars <- intersect(rare_saturated_vars, names(data_SHARE5))
+data_SHARE6 <- data_SHARE5[, setdiff(names(data_SHARE5), existing_rare_vars), drop = FALSE]
+
+##### (5) Ensure age-related trend==============================================
+vars_r4 <- target_vars[grepl("^r4", target_vars)]                               # 提取Wave4的目标变量（以r4开头）
+valid_r4_vars <- result_df$变量名[result_df$是否符合条件 == "是"]               # 从result_df中筛选出"是否符合条件"为"是"的Wave4变量
+final_r4_vars <- intersect(valid_r4_vars, names(data_SHARE6))                   # 确保这些变量在data_SHARE6中存在
+
+cat("===== Wave4符合条件的变量筛选结果 =====\n",
+    "Wave4目标变量总数：", length(vars_r4), "\n",
+    "符合0.01<均值<0.80的变量数：", length(valid_r4_vars), "\n",
+    "data_SHARE6中实际存在的符合条件变量数：", length(final_r4_vars), "\n",
+    "符合条件的Wave4变量列表：\n", sep = "")
+print(final_r4_vars)
+
+analysis_data <- data_SHARE6 %>% select(r4agey, all_of(final_r4_vars)) %>% drop_na(r4agey) # 提取分析数据集：仅保留年龄变量（r4agey）和符合条件的Wave4变量 删除年龄缺失的行
+
+# 相关性检验：Wave4变量与年龄的皮尔逊相关 
+corr_results <- data.frame(变量名 = character(),
+                           相关系数 = numeric(),
+                           P值 = numeric(),
+                           相关性方向 = character(),
+                           显著性 = character(),
+                           stringsAsFactors = FALSE)
+
+for (var in final_r4_vars) {
+  clean_data <- analysis_data %>% select(r4agey, all_of(var)) %>% drop_na()           # 去除变量缺失值
+  corr_test <- cor.test(clean_data$r4agey, clean_data[[var]], method = "pearson")     # 皮尔逊相关检验（有序变量可改用method = "spearman"）
+  corr_coef <- round(corr_test$estimate, 4)
+  p_val <- round(corr_test$p.value, 4)
+  
+  direction <- ifelse(corr_coef > 0, "正相关", ifelse(corr_coef < 0, "负相关", "无相关"))  
+  significance <- ifelse(p_val < 0.001, "***", ifelse(p_val < 0.01, "**", ifelse(p_val < 0.05, "*", "ns")))
+
+  corr_results <- rbind(corr_results, data.frame(变量名 = var, 
+                                                 相关系数 = corr_coef,
+                                                 P值 = p_val,
+                                                 相关性方向 = direction,
+                                                 显著性 = significance,
+                                                 stringsAsFactors = FALSE))}
+
+corr_results <- corr_results %>% arrange(相关性方向, desc(abs(相关系数)))
+cat("\n===== Wave4变量与年龄的相关性检验结果 =====\n")
+print(corr_results, row.names = FALSE)
+
+# 删除"负相关"的变量形成data_SHARE7
+neg_corr_r4_vars <- corr_results$变量名[corr_results$相关性方向 == "负相关"]
+existing_neg_vars <- intersect(unlist(lapply(neg_corr_r4_vars, function(var) paste0("r", 4:9, sub("^r4", "", var)))), names(data_SHARE6))
+cat("删除的变量：", paste(existing_neg_vars, collapse = ", "), "\n")
+
+data_SHARE7 <- data_SHARE6[, setdiff(names(data_SHARE6), existing_neg_vars), drop = FALSE]
+
+
+##### (6) Check for collinearity (r > 0.95)
+calculate_wave4_correlation <- function(data, target_vars, method = "spearman", high_corr_thresh = 0.95) {
+  w4_vars <- intersect(target_vars[grepl("^r4", target_vars)], names(data))     # 提取Wave4有效变量
+  cat("===== Wave4 变量相关性分析（r >", high_corr_thresh, "）=====\n")
+  
+  # 变量/样本量验证
+  if (length(w4_vars) < 2) return(cat("有效变量不足2个，跳过\n"))
+  var_data <- data[complete.cases(data[, w4_vars]), w4_vars]
+  if (nrow(var_data) < 5) return(cat("有效样本量不足，跳过\n"))
+  
+  # 计算相关性矩阵并筛选高相关对
+  corr_mat <- round(cor(as.matrix(var_data), method = method), 3)
+  high_corr <- which(corr_mat > high_corr_thresh & corr_mat < 1, arr.ind = TRUE)
+  
+  if (nrow(high_corr) > 0) {
+    pairs <- data.frame(
+      变量1 = rownames(corr_mat)[high_corr[, 1]],
+      变量2 = colnames(corr_mat)[high_corr[, 2]],
+      相关系数 = corr_mat[high_corr]
+    )[with(pairs, 变量1 < 变量2), ] # 去重
+    cat("极高相关变量对：\n"); print(pairs, row.names = FALSE)
+  } else {
+    cat("无极高相关变量对（r ≤", high_corr_thresh, "）\n")
+  }
+  invisible(corr_mat) # 返回相关性矩阵
+}
+
+calculate_wave4_correlation(data_SHARE7, target_vars, "spearman", 0.95)         # 调用函数
+
+# 形成高共线性变量数据集（虽然没有变量高共线性，但便于后续筛选）
+calculate_wave4_correlation_with_return <- function(data, target_vars, method = "spearman", high_corr_thresh = 0.95) {
+  w4_vars <- intersect(target_vars[grepl("^r4", target_vars)], names(data))
+  if (length(w4_vars) < 2) return(NULL)
+  var_data <- data[complete.cases(data[, w4_vars]), w4_vars]
+  if (nrow(var_data) < 5) return(NULL)
+  corr_mat <- round(cor(as.matrix(var_data), method = method), 3)
+  high_corr <- which(corr_mat > high_corr_thresh & corr_mat < 1, arr.ind = TRUE)
+  if (nrow(high_corr) == 0) return(NULL)
+  pairs <- data.frame(
+    变量1 = rownames(corr_mat)[high_corr[, 1]],
+    变量2 = colnames(corr_mat)[high_corr[, 2]],
+    相关系数 = corr_mat[high_corr]
+  )[with(pairs, 变量1 < 变量2), ]
+  return(pairs)
+}
+
+high_corr_pairs <- calculate_wave4_correlation_with_return(data_SHARE7, target_vars, "spearman", 0.95)     # 提取Wave4高相关变量对
+# 定义高共线性变量删除规则：每对中删除第二个变量（可根据需求调整）
+if (!is.null(high_corr_pairs)) {
+  del_w4_coll_vars <- unique(high_corr_pairs$变量2) # 提取Wave4需删除的高相关变量
+  # 生成所有Wave的高相关待删除变量
+  del_coll_vars <- unlist(lapply(del_w4_coll_vars, function(var) {
+    suffix <- sub("^r4", "", var)
+    paste0("r", 4:9, suffix)
+  }))
+  cat("需删除的高共线性变量（所有Wave）：", paste(del_coll_vars, collapse = ", "), "\n")
+} else {
+  del_coll_vars <- c() # 无高相关变量时，待删除列表为空
+  cat("无高共线性变量需删除\n")
+}
+
+##### (7) Calculate individual FI===============================================
+# 从data_SHARE7中提取最终符合所有条件的target_vars子集，生成用于 FI 构建的数据集
+final_fi_target_vars <- setdiff(target_vars, c(rare_saturated_vars, existing_neg_vars, del_coll_vars))       # 步骤1：从target_vars中排除稀有/饱和变量、负相关变量、高共线性变量
+final_fi_vars <- intersect(final_fi_target_vars, names(data_SHARE7))            # 步骤2：筛选data_SHARE7中实际存在的最终变量（避免变量不存在）
+key_cols <- c("mergeid")                                                        # 步骤3：保留关键标识列（mergeid）+ 最终FI变量，生成数据集
+fi_data <- data_SHARE7[, c(key_cols, final_fi_vars), drop = FALSE]
+
+# 按Wave拆分最终FI变量
+fi_var_wave <- data.frame(var_name = final_fi_vars,
+                          wave = gsub("r", "", str_extract(final_fi_vars, "^r\\d+")), # 提取Wave数字
+                          stringsAsFactors = FALSE)
+fi_var_wave <- fi_var_wave[!is.na(fi_var_wave$wave) & fi_var_wave$wave != "", ] # 过滤无效Wave
+wave_fi_vars <- split(fi_var_wave$var_name, fi_var_wave$wave)                   # 按Wave分组FI变量
+min_var_count <- 25      #SHARE的阈值是25
+
+fi_result_list <- list()
+i <- 1 # 列表索引
+
+# 循环每个Wave计算FI值（核心：向量化计算）
+for (wave in names(wave_fi_vars)) {     
+  cat("正在计算Wave", wave, "的FI值...\n")
+  current_vars <- wave_fi_vars[[wave]]
+  if (length(current_vars) == 0) {
+    cat("Wave", wave, "无FI变量，跳过\n")
+    next
+  }
+  
+  # 提取数据：仅保留mergeid和当前Wave变量
+  wave_data <- fi_data %>% select(mergeid, all_of(current_vars))
+
+    # 核心优化：向量化计算非缺失值个数和总和
+  var_matrix <- as.matrix(wave_data[, current_vars, drop = FALSE])              # 转为矩阵
+  non_missing_count <- rowSums(!is.na(var_matrix))                              # 向量化计算每行非缺失值个数
+  var_sum <- rowSums(var_matrix, na.rm = TRUE)                                  # 向量化计算每行总和
+  
+  # 计算FI值（向量化判断，无循环）
+  fi_value <- ifelse(non_missing_count >= min_var_count, var_sum / non_missing_count, NA)
+  
+  # 组装结果并加入列表
+  wave_fi <- data.frame(
+    mergeid = wave_data$mergeid,
+    non_missing_count = non_missing_count,
+    fi_value = fi_value,
+    wave = wave,
+    stringsAsFactors = FALSE
+  )
+  fi_result_list[[i]] <- wave_fi
+  i <- i + 1
+}
+
+fi_result <- do.call(rbind, fi_result_list)                                     # 合并列表为数据框
+
+# 整理结果 ---------------------------------------------------------------------20260601修改
+fi_final <- fi_result %>% 
+  # select 内部直接完成列选取 + 重命名，不再单独使用 rename
+  select(
+    mergeid,
+    波次 = wave,
+    非缺失值变量数 = non_missing_count,
+    FI值 = fi_value
+  ) %>% 
+  arrange(mergeid, 波次)
+cat("\n===== 各mergeid各Wave的FI值（前250行）=====\n")
+print(head(fi_final, 250), row.names = FALSE)
+
+# 统计各Wave的FI值有效情况
+wave_fi_summary <- fi_final %>% group_by(波次) %>%
+  summarise(总参与者数 = dplyr::n_distinct(mergeid),
+            FI有效数 = sum(!is.na(FI值)),
+            FI缺失数 = sum(is.na(FI值)),
+            平均FI值 = round(mean(FI值, na.rm = TRUE), 4)) %>% ungroup()
+cat("\n===== 各Wave FI值统计汇总 =====\n")
+print(wave_fi_summary, row.names = FALSE)
+
+# 将FI值按Wave合并到data_SHARE7中
+fi_wide <- fi_final %>% select(mergeid, 波次, FI值) %>%
+  # 重命名波次为FI_w+数字（如4→FI_w4）
+  mutate(FI列名 = paste0("FI_w", 波次)) %>%
+  # 转换为宽格式：每个Wave的FI值作为单独列，无数据则为NA
+  pivot_wider(id_cols = mergeid, names_from = FI列名, values_from = FI值, values_fill = NA)
+
+all_fi_cols <- paste0("FI_w", 4:9)
+for (col in all_fi_cols) {
+  if (!col %in% colnames(fi_wide)) {
+    fi_wide[[col]] <- NA
+  }
+}
+
+data_SHARE8 <- data_SHARE7 %>% left_join(fi_wide, by = "mergeid") # 按mergeid将FI宽格式数据合并到data_SHARE7中 左连接，保留data_SHARE7所有行
+cat("\n===== 合并FI值后的data_SHARE7数据集（前20行，展示mergeid和FI_w4~FI_w9）=====\n")
+print(head(data_SHARE8[, c("mergeid", all_fi_cols)], 20), row.names = FALSE)
+
+# 在data_SHARE4中生成Frailty变量
+data_SHARE8 <- data_SHARE8 %>% mutate(Frailty_w4 = case_when(FI_w4 >= 0.25 ~ 1, FI_w4 < 0.25 ~ 0, TRUE ~ NA_real_),
+                                      Frailty_w5 = case_when(FI_w5 >= 0.25 ~ 1, FI_w5 < 0.25 ~ 0, TRUE ~ NA_real_),
+                                      Frailty_w6 = case_when(FI_w6 >= 0.25 ~ 1, FI_w6 < 0.25 ~ 0, TRUE ~ NA_real_),
+                                      Frailty_w7 = case_when(FI_w7 >= 0.25 ~ 1, FI_w7 < 0.25 ~ 0, TRUE ~ NA_real_),
+                                      Frailty_w8 = case_when(FI_w8 >= 0.25 ~ 1, FI_w8 < 0.25 ~ 0, TRUE ~ NA_real_),
+                                      Frailty_w9 = case_when(FI_w9 >= 0.25 ~ 1, FI_w9 < 0.25 ~ 0, TRUE ~ NA_real_))
+# 保留 Frailty_w4 不等于1的参与者
+table(data_SHARE8$Frailty_w4, useNA = "always")
+data_SHARE8 <- data_SHARE8 %>% filter(Frailty_w4 != 1)
+
+#先备份
+saveRDS(data_SHARE8, file = "D:\\0. 科研文件\\2. Obesity trajectories and frailty_Zhiyue&Simu&Qitong\\1. SHARE\\2. Backups of study participants\\SHARE_Variability + Cumulative_20251128.rds")
+
+data_SHARE9 <- readRDS(file = "D:\\0. 科研文件\\2. Obesity trajectories and frailty_Zhiyue&Simu&Qitong\\1. SHARE\\2. Backups of study participants\\SHARE_Variability + Cumulative_20251128_完成X定义.rds")
+# ==============================================================================
+# (二) 数据分析 Table 6 GEE analysis
+# ==============================================================================
+# 复制原始数据，避免修改原数据
+data_SHARE9_clean <- data_SHARE9
+names(data_SHARE9)
+
+# 转换格式
+dat_long <- data_SHARE9_clean %>%
+  select(mergeid,
+         inw7, inw8, inw9, r7iwstat, r8iwstat, r9iwstat,
+         Frailty_w7, Frailty_w8, Frailty_w9,
+         BMI_quantiles_CV, BMI_quantiles_SD, BMI_quantiles_ARV, BMI_quantiles_VIM,
+         age, Gender, Rrbanicity, educate, marital_st, employ_st, physical_activity, smoke, drink_ever_3, wealth, slope, CumBMI, n_chronic,
+         r4rxhibp, r4rxdiab, r4rxlung, r4rxheart, r4rxpsych, r5rxinflm,
+         cancer, heart, stroke
+  ) %>%
+  # 第一步拆分：仅处理随波次变化的结局变量（带_w后缀）
+  pivot_longer(cols = starts_with("Frailty_w"),  # 仅拆分结局变量，精准指定
+               names_to = c(".value", "wave"),
+               names_pattern = "(.*)_w(\\d+)",
+               values_drop_na = TRUE  # 剔除结局变量的缺失值，减少后续筛选
+  ) %>%
+  # 第二步拆分：仅处理随访变量，避免纳入非拆分列
+  pivot_longer(
+    cols = c(inw7, inw8, inw9, r7iwstat, r8iwstat, r9iwstat), 
+    names_to = c("var_prefix", "wave_num"),
+    names_pattern = "(.*)(\\d+)",  # 匹配“前缀+数字”（如inw7→inw+7，r7iwstat→r+7）
+    values_drop_na = TRUE
+  ) %>%
+  # 转换波次为数值型，筛选波次一致的记录
+  mutate(wave = as.numeric(wave), wave_num = as.numeric(wave_num)
+  ) %>% filter(wave == wave_num) %>%
+  # 重塑随访变量为宽格式
+  pivot_wider(names_from = var_prefix, values_from = value
+  ) %>%
+  # 数据清洗与重命名
+  rename(
+    follow_flag = inw,               # follow_flag=1：该波次有随访计划
+    interview_status = r,            # interview_status=1：该波次实际完成随访
+    follow_up_wave = wave
+  ) %>%
+  mutate(
+    mergeid = factor(mergeid),
+    follow_up_wave = as.numeric(follow_up_wave)
+  ) %>%
+  # 筛选有效随访：同时满足“有随访计划”和“实际完成随访”
+  filter(follow_flag == 1 & interview_status == 1) %>%
+  # 剔除结局/暴露的缺失值
+  drop_na(Frailty, BMI_quantiles_CV) %>%
+  # 移除多余列
+  select(-wave_num)
+
+# 查看转换后的数据结构
+head(dat_long)
+table(dat_long$mergeid) %>% head()
+
+# ============================ IPTW权重计算 ====================================
+dat_baseline <- dat_long %>%
+  group_by(mergeid) %>%
+  slice(1) %>%  # 取每个个体的首次观测作为基线
+  ungroup() %>%
+  select(mergeid, BMI_quantiles_CV, age, Gender, Rrbanicity, educate, marital_st, 
+         employ_st, physical_activity, smoke, drink_ever_3, wealth, slope, CumBMI)
+
+# 拟合多分类逻辑回归模型，估计倾向得分
+iptw_m <- multinom(BMI_quantiles_CV ~ age + Gender + Rrbanicity + educate + marital_st + employ_st + physical_activity + smoke + drink_ever_3 + wealth + slope + CumBMI, 
+                   data = dat_baseline, 
+                   trace = FALSE)
+
+# 预测每个个体的倾向得分（条件概率）
+dat_baseline$propensity_scores <- predict(iptw_m, type = "probs")  
+summary(dat_baseline$propensity_scores)
+
+# 定义暴露变量的因子水平（根据实际情况调整，此处为示例）
+unique(dat_baseline$BMI_quantiles_CV)
+dat_baseline$BMI_quantiles_CV <- factor(dat_baseline$BMI_quantiles_CV)
+exposure_levels <- levels(dat_baseline$BMI_quantiles_CV)
+cat("暴露变量的水平：", exposure_levels, "\n")
+
+# 计算IPTW权重
+dat_baseline$iptw_weight <- NA     # 初始化权重列
+# 循环计算每个暴露组的权重
+for (i in 1:length(exposure_levels)) {  
+  dat_baseline$iptw_weight[dat_baseline$BMI_quantiles_CV == exposure_levels[i]] <- 
+    1 / dat_baseline$propensity_scores[dat_baseline$BMI_quantiles_CV == exposure_levels[i], i]
+}
+
+# 权重截尾（Trimming）：处理极端权重
+quantile_99 <- quantile(dat_baseline$iptw_weight, 0.99, na.rm = TRUE)
+dat_baseline$iptw_weight_trim <- ifelse(dat_baseline$iptw_weight > quantile_99, quantile_99, dat_baseline$iptw_weight)
+
+# 查看权重分布（原始vs截尾）
+cat("原始权重统计：\n")
+summary(dat_baseline$iptw_weight)
+cat("截尾后权重统计：\n")
+summary(dat_baseline$iptw_weight_trim)
+
+ggplot(dat_baseline, aes(x = iptw_weight_trim)) + geom_histogram(bins = 30, fill = "steelblue", alpha = 0.7) +
+  labs(title = "IPTW权重分布（截尾后）", x = "权重值", y = "频数") +
+  theme_minimal()
+
+# 将权重合并回长格式数据dat_long
+dat_long <- dat_long %>% left_join(dat_baseline %>% select(mergeid, iptw_weight_trim), by = "mergeid")
+
+# ============================ 协变量平衡检验：svyCreateTableOne 方案 ============================
+cov_vars <- c("age", "Gender", "Rrbanicity", "educate", "marital_st", "employ_st", "physical_activity", "smoke", "drink_ever_3", "wealth", "slope", "CumBMI")
+
+# 数据清理
+dat_baseline_clean <- dat_baseline %>% drop_na(iptw_weight_trim) %>% mutate(BMI_quantiles_CV = factor(BMI_quantiles_CV))
+
+# 构建加权设计
+svy_design <- svydesign(ids = ~1, weights = ~iptw_weight_trim, data = dat_baseline_clean)
+
+# 生成未加权平衡表并提取SMD
+table_unweighted <- CreateTableOne(vars = cov_vars, strata = "BMI_quantiles_CV", data = dat_baseline_clean, test = FALSE)
+smd_unweighted <- print(table_unweighted, smd = TRUE)[, "SMD"]  # 未加权SMD
+
+# 生成加权平衡表并提取SMD
+table_weighted <- svyCreateTableOne(vars = cov_vars, strata = "BMI_quantiles_CV", data = svy_design, test = FALSE)
+smd_weighted <- print(table_weighted, smd = TRUE)[, "SMD"]  # 加权SMD
+
+smd_result <- data.frame(
+  协变量 = names(smd_unweighted),
+  未加权SMD = as.numeric(smd_unweighted),
+  加权后SMD = as.numeric(smd_weighted),
+  stringsAsFactors = FALSE)
+
+print(smd_result, digits = 3)
+
+# ============================ 第二步：绘制Figure 2 Love Plot ==================
+# 手动指定SMD值（确保为数值型）
+smd_unweighted <- c(age = 0.025, Gender = 0.126, Rrbanicity = 0.017, educate = 0.203, marital_st = 0.038, employ_st = 0.043, physical_activity = 0.102, smoke = 0.115, drink_ever_3 = 0.213, wealth = 0.222, slope = 0.120, CumBMI = 0.208)
+smd_weighted <- c(age = 0.007, Gender = 0.011, Rrbanicity = 0.003, educate = 0.006, marital_st = 0.010, employ_st = 0.002, physical_activity = 0.006, smoke = 0.004, drink_ever_3 = 0.002, wealth = 0.005, slope = 0.012, CumBMI = 0.004)
+
+# 构建数据框并强制转换为数值型
+smd_manual <- data.frame(协变量原始名 = names(smd_unweighted), 未加权SMD = as.numeric(smd_unweighted), 加权后SMD = as.numeric(smd_weighted))
+
+# 协变量重命名映射
+cov_rename <- c("age" = "Age",
+                "Gender" = "Gender",
+                "Rrbanicity" = "Urbanicity",
+                "educate" = "Education level",
+                "marital_st" = "Marital status",
+                "employ_st" = "Occupation",
+                "physical_activity" = "Physical activity",
+                "smoke" = "Smoking status",
+                "drink_ever_3" = "Drinking status",
+                "wealth" = "Household wealth",
+                "slope" = "BMI Slope",
+                "CumBMI" = "Cumulative BMI")
+
+# 重命名并清理数据
+smd_clean <- smd_manual %>% mutate(协变量 = recode(协变量原始名, !!!cov_rename)) %>%
+  select(-协变量原始名) %>%
+  mutate(未加权SMD = as.numeric(未加权SMD), 加权后SMD = as.numeric(加权后SMD))
+
+str(smd_clean)
+
+ggsave(
+  filename = "D:\\0. 科研文件\\2. Obesity trajectories and frailty_Zhiyue&Simu&Qitong\\1. SHARE\\2. Backups of study participants\\love_无网格线_20260310.png",
+  plot = ggplot(smd_clean, aes(y = reorder(协变量, 未加权SMD))) +
+    geom_segment(aes(x = 未加权SMD, xend = 加权后SMD, yend = after_stat(y)), color = "gray50", linetype = "solid", linewidth = 0.6) +
+    geom_point(aes(x = 未加权SMD), color = "darkred", size = 3, shape = 16) +
+    geom_point(aes(x = 加权后SMD), color = "darkblue", size = 3, shape = 17) +
+    geom_vline(xintercept = 0.1, linetype = "dashed", color = "gray50", linewidth = 0.6) +
+    labs(x = "Standardized Mean Difference", y = "", title = "C. European countries (N=18,750)") +
+    theme_minimal() +
+    theme(
+      axis.text.y = element_text(size = 12, color = "black", face = "bold"),
+      axis.text.x = element_text(size = 13, color = "black", face = "bold"),
+      axis.title.x = element_text(size = 10, color = "#666666", face = "bold"),
+      # ✅ 核心修改：图标题字号从10增大至13，保留加粗/左对齐
+      plot.title = element_text(size = 13, face = "bold", hjust = 0),
+      panel.grid.minor = element_blank(),  # 隐藏所有次要网格线
+      panel.grid.major = element_blank(),  # 隐藏所有主要网格线
+      legend.position = "none",
+      plot.margin = margin(t = 5, r = 5, b = 3, l = 2, unit = "pt")
+    ) +
+    scale_x_continuous(limits = c(0, 0.25), breaks = seq(0, 0.25, 0.05)),
+  width = 5,         # 图片宽度（英寸）
+  height = 6,        # 图片高度（英寸）
+  dpi = 350,         # 分辨率
+  device = "png"     # 导出格式
+)
+
+# ========================== GEE + IPTW ========================================
+get_gee_or <- function(gee_model, digits = 3) {
+  # 提取模型系数的汇总结果
+  coef_summary <- summary(gee_model)$coefficients
+  or <- exp(coef_summary[, "Estimate"])
+  # 计算95%置信区间（指数化置信区间）
+  ci_lower <- exp(coef_summary[, "Estimate"] - 1.96 * coef_summary[, "Std.err"])
+  ci_upper <- exp(coef_summary[, "Estimate"] + 1.96 * coef_summary[, "Std.err"])
+  # 提取P值
+  p_value <- coef_summary[, "Pr(>|W|)"]
+  # 整合结果为数据框
+  result <- data.frame(
+    Variable = rownames(coef_summary),
+    OR = round(or, digits),
+    CI95 = paste0("(", round(ci_lower, digits), ", ", round(ci_upper, digits), ")"),
+    P_value = round(p_value, digits)
+  )
+  # 重置行名
+  rownames(result) <- NULL
+  return(result)
+}
+
+# ============================ 1. 长期变异性_CV============================
+dat_long$BMI_quantiles_CV <- factor(dat_long$BMI_quantiles_CV)
+
+gee_CV_3 <- geeglm(Frailty ~ BMI_quantiles_CV + age + Gender + Rrbanicity + educate + marital_st + employ_st + physical_activity + smoke + drink_ever_3 + wealth + slope + CumBMI, 
+                   id = mergeid, 
+                   weights = iptw_weight_trim,
+                   data = dat_long, 
+                   family = binomial(link = "logit"),
+                   corstr = "exchangeable")
+or_result_CV_3 <- get_gee_or(gee_CV_3, digits = 2)
+print(or_result_CV_3)
+#2     BMI_quantiles_CV2 1.07 (0.96, 1.19)    0.21
+#3     BMI_quantiles_CV3 1.37 (1.24, 1.52)    0.00
+#4     BMI_quantiles_CV4 1.71  (1.54, 1.9)    0.00
+
+# ============================ 1. 长期变异性_CV + 共病 =========================
+dat_long$BMI_quantiles_CV <- factor(dat_long$BMI_quantiles_CV)
+
+gee_CV_3 <- geeglm(Frailty ~ BMI_quantiles_CV + age + Gender + Rrbanicity + educate + marital_st + employ_st + physical_activity + smoke + drink_ever_3 + wealth + slope + CumBMI + n_chronic, 
+                   id = mergeid, 
+                   weights = iptw_weight_trim,
+                   data = dat_long, 
+                   family = binomial(link = "logit"),
+                   corstr = "exchangeable")
+or_result_CV_3 <- get_gee_or(gee_CV_3, digits = 2)
+print(or_result_CV_3)
+#2     BMI_quantiles_CV2 1.05 (0.94, 1.17)    0.35
+#3     BMI_quantiles_CV3 1.34 (1.21, 1.49)    0.00
+#4     BMI_quantiles_CV4 1.75 (1.57, 1.94)    0.00
+
+# ============================ 1. 长期变异性_CV + 排除用药史 =========================
+names(dat_long)
+table(dat_long$r4rxhibp, useNA = "always")      #
+table(dat_long$r4rxdiab, useNA = "always")      #
+table(dat_long$r4rxlung, useNA = "always")      #
+table(dat_long$r4rxheart, useNA = "always")      #
+table(dat_long$r4rxpsych, useNA = "always")      #
+table(dat_long$r5rxinflm, useNA = "always")      #
+
+dat_clean <- dat_long[
+  dat_long$r4rxhibp   == 0 &
+    dat_long$r4rxdiab   == 0 &
+    dat_long$r4rxlung   == 0 &
+    dat_long$r4rxheart  == 0 &
+    dat_long$r4rxpsych  == 0,] # & dat_long$r5rxinflm  == 0,]
+
+cat("筛选前总样本数：", nrow(dat_long), "\n")     # 31813
+cat("剔除所有用药者后样本数：", nrow(dat_clean), "\n")     # 17755
+cat("本次剔除人数：", nrow(dat_long) - nrow(dat_clean), "\n")     # 14058
+
+gee_CV_3 <- geeglm(Frailty ~ BMI_quantiles_CV + age + Gender + Rrbanicity + educate + marital_st + employ_st + physical_activity + smoke + drink_ever_3 + wealth + slope + CumBMI + n_chronic, 
+                   id = mergeid, 
+                   weights = iptw_weight_trim,
+                   data = dat_clean, 
+                   family = binomial(link = "logit"),
+                   corstr = "exchangeable")
+or_result_CV_3 <- get_gee_or(gee_CV_3, digits = 2)
+print(or_result_CV_3)
+#2     BMI_quantiles_CV2 1.05 (0.89, 1.24)    0.56
+#3     BMI_quantiles_CV3 1.44 (1.22, 1.69)    0.00
+#4     BMI_quantiles_CV4 1.90 (1.62, 2.24)    0.00
+
+# =================== 在这里插入：Q1-Q4 样本量 + case 数统计 ===================
+data_SHARE9 <- readRDS(file = "D:\\0. 科研文件\\2. Obesity trajectories and frailty_Zhiyue&Simu&Qitong\\1. SHARE\\2. Backups of study participants\\SHARE_Variability + Cumulative_20251128_完成X定义.rds")
+table(data_SHARE9$Frailty)
+table(data_SHARE9$BMI_quantiles_CV, useNA = "always")
+#1    2    3    4    <NA> 
+#4688 4688 4687 4687    0
+
+data_SHARE9_clean <- subset(data_SHARE9, r4rxhibp == 0 & r4rxdiab == 0 & r4rxlung == 0 & r4rxheart == 0 & r4rxpsych == 0)
+names(data_SHARE9_clean)
+table(data_SHARE9_clean$Frailty)
+table(data_SHARE9_clean$BMI_quantiles_CV, useNA = "always")
+#1    2    3     4     <NA> 
+#2709 2649 2502 2487    0
+
+#描述性统计
+table(data_SHARE9_clean$Frailty, data_SHARE9_clean$BMI_quantiles_CV)
+data_SHARE9_clean %>% group_by(BMI_quantiles_CV) %>% summarise(total_ttime = sprintf("%.2f", sum(survival衰弱, na.rm = TRUE)))
+
+surv_summary <- data_SHARE9_clean %>% 
+  group_by(BMI_quantiles_CV) %>% 
+  summarise(总样本数 = n(),
+            事件数 = sum(Frailty == 1, na.rm = TRUE),
+            总暴露时间 = sum(survival衰弱, na.rm = TRUE),
+            发病率 = sprintf("%.3f", 事件数/总暴露时间 * 1000))
+print(surv_summary)
+#BMI_quantiles_CV 总样本数 事件数 总暴露时间 发病率
+#<int>    <int>  <int>      <dbl> <chr> 
+#  1                1     2709    402     15130. 26.569
+#2                2     2649    445     14407. 30.887
+#3                3     2502    555     13129. 42.272
+#4                4     2487    698     12090. 57.731
+
+# ============================ 2. 长期变异性_SD============================
+gee_SD_1 <- geeglm(Frailty ~ BMI_quantiles_SD, 
+                   id = mergeid, 
+                   weights = iptw_weight_trim,  # 传入IPTW截尾权重（加权分析）
+                   data = dat_long, 
+                   family = binomial(link = "logit"),
+                   corstr = "exchangeable")
+gee_SD_2 <- geeglm(Frailty ~ BMI_quantiles_SD + age + Gender, 
+                   id = mergeid, 
+                   weights = iptw_weight_trim,
+                   data = dat_long, 
+                   family = binomial(link = "logit"),
+                   corstr = "exchangeable")
+gee_SD_3 <- geeglm(Frailty ~ BMI_quantiles_SD + age + Gender + Rrbanicity + educate + marital_st + employ_st + physical_activity + smoke + drink_ever_3 + wealth + slope + CumBMI, 
+                   id = mergeid, 
+                   weights = iptw_weight_trim,
+                   data = dat_long, 
+                   family = binomial(link = "logit"),
+                   corstr = "exchangeable")
+
+or_result_SD_1 <- get_gee_or(gee_SD_1, digits = 2)
+print(or_result_SD_1)
+or_result_SD_2 <- get_gee_or(gee_SD_2, digits = 2)
+print(or_result_SD_2)
+or_result_SD_3 <- get_gee_or(gee_SD_3, digits = 2)
+print(or_result_SD_3)
+
+
+# ============================ 3. 长期变异性_ARV ============================
+gee_ARV_1 <- geeglm(Frailty ~ BMI_quantiles_ARV, 
+                    id = mergeid, 
+                    weights = iptw_weight_trim,  # 传入IPTW截尾权重（加权分析）
+                    data = dat_long, 
+                    family = binomial(link = "logit"),
+                    corstr = "exchangeable")
+gee_ARV_2 <- geeglm(Frailty ~ BMI_quantiles_ARV + age + Gender, 
+                    id = mergeid, 
+                    weights = iptw_weight_trim,
+                    data = dat_long, 
+                    family = binomial(link = "logit"),
+                    corstr = "exchangeable")
+gee_ARV_3 <- geeglm(Frailty ~ BMI_quantiles_ARV + age + Gender + Rrbanicity + educate + marital_st + employ_st + physical_activity + smoke + drink_ever_3 + wealth + slope + CumBMI, 
+                    id = mergeid, 
+                    weights = iptw_weight_trim,
+                    data = dat_long, 
+                    family = binomial(link = "logit"),
+                    corstr = "exchangeable")
+
+or_result_ARV_1 <- get_gee_or(gee_ARV_1, digits = 2)
+print(or_result_ARV_1)
+or_result_ARV_2 <- get_gee_or(gee_ARV_2, digits = 2)
+print(or_result_ARV_2)
+or_result_ARV_3 <- get_gee_or(gee_ARV_3, digits = 2)
+print(or_result_ARV_3)
+
+
+# ============================ 4. 长期变异性_VIM ============================
+gee_VIM_1 <- geeglm(Frailty ~ BMI_quantiles_VIM, 
+                    id = mergeid, 
+                    weights = iptw_weight_trim,  # 传入IPTW截尾权重（加权分析）
+                    data = dat_long, 
+                    family = binomial(link = "logit"),
+                    corstr = "exchangeable")
+gee_VIM_2 <- geeglm(Frailty ~ BMI_quantiles_VIM + age + Gender, 
+                    id = mergeid, 
+                    weights = iptw_weight_trim,
+                    data = dat_long, 
+                    family = binomial(link = "logit"),
+                    corstr = "exchangeable")
+gee_VIM_3 <- geeglm(Frailty ~ BMI_quantiles_VIM + age + Gender + Rrbanicity + educate + marital_st + employ_st + physical_activity + smoke + drink_ever_3 + wealth + slope + CumBMI, 
+                    id = mergeid, 
+                    weights = iptw_weight_trim,
+                    data = dat_long, 
+                    family = binomial(link = "logit"),
+                    corstr = "exchangeable")
+or_result_VIM_1 <- get_gee_or(gee_VIM_1, digits = 2)
+print(or_result_VIM_1)
+or_result_VIM_2 <- get_gee_or(gee_VIM_2, digits = 2)
+print(or_result_VIM_2)
+or_result_VIM_3 <- get_gee_or(gee_VIM_3, digits = 2)
+print(or_result_VIM_3)
+
+
+# 完成GEE和IPTW权重计算的数据集备份
+saveRDS(dat_long, 
+        file = "D:\\0. 科研文件\\2. Obesity trajectories and frailty_Zhiyue&Simu&Qitong\\1. SHARE\\2. Backups of study participants\\完成GEE和IPTW权重计算_20260411.rds")
+dat_long <- readRDS("D:\\0. 科研文件\\2. Obesity trajectories and frailty_Zhiyue&Simu&Qitong\\1. SHARE\\2. Backups of study participants\\完成GEE和IPTW权重计算_20260411.rds")
+
+
+
